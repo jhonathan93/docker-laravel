@@ -5,7 +5,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: build/apache/php-8.3/Dockerfile
+      dockerfile: build/apache/php-8.4/Dockerfile
       args:
         - UID=${UID:-1000}
         - GID=${GID:-1000}
