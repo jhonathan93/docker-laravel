@@ -14,6 +14,7 @@ function install_new_laravel() {
   composer install --no-dev --optimize-autoloader
   composer require aws/aws-sdk-php
   composer require league/flysystem-aws-s3-v3
+  composer require predis/predis
 
   print_message "$GREEN" "${EMOJI_HOURGLASS} Gerando chave de aplicativo..."
   php artisan key:generate

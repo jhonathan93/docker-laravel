@@ -30,6 +30,7 @@ services:
       - mysql
       - mailhog
       - minio
+      - redis
     networks:
       - laravel
       
@@ -55,6 +56,15 @@ services:
     networks:
       - laravel
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - laravel
+
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
@@ -77,3 +87,4 @@ services:
 
 volumes:
   minio_data:
+  redis_data:
