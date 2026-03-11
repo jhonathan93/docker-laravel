@@ -33,7 +33,25 @@ services:
       - redis
     networks:
       - laravel
-      
+
+  queue:
+    build:
+      context: .
+      dockerfile: build/apache/php-8.4/Dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    command: php artisan queue:work redis --queue=geocoding --sleep=3 --tries=3 --timeout=60
+    restart: always
+    volumes:
+      - ./src:/var/www/html
+      - ~/.composer/cache:/var/www/.composer/cache
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - laravel
+
   mysql:
     image: mysql:latest
     ports:
