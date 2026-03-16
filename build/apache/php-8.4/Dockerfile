@@ -86,7 +86,6 @@ COPY /.docker/script/core.sh /usr/local/bin/core.sh
 COPY /.docker/script/signature.sh /usr/local/bin/signature.sh
 COPY /.docker/script/cache_laravel.sh /usr/local/bin/cache_laravel.sh
 COPY /.docker/script/setup_laravel.sh /usr/local/bin/setup_laravel.sh
-COPY /.docker/script/deploy.sh /usr/local/bin/deploy.sh
 
 RUN chmod 777 -Rf /var/www /var/www/.* \
     && chown -Rf www-data:www-data /var/www /var/www/.* \
@@ -97,8 +96,7 @@ RUN chmod 777 -Rf /var/www /var/www/.* \
     && chmod +x /usr/local/bin/core.sh \
     && chmod +x /usr/local/bin/signature.sh \
     && chmod +x /usr/local/bin/cache_laravel.sh \
-    && chmod +x /usr/local/bin/setup_laravel.sh \
-    && chmod +x /usr/local/bin/deploy.sh
+    && chmod +x /usr/local/bin/setup_laravel.sh
 
 VOLUME /var/www/html
 WORKDIR /var/www/html
