@@ -1,6 +1,6 @@
 
 #!/bin/bash
-cd /home/jhonathan/projetos/docker-laravel
+cd /home/jhonathan/projetos/docker-laravel/src
 
 echo "Puxando atualizações..."
 sudo -u jhonathan git pull origin main
