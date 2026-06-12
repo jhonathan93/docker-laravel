@@ -51,6 +51,40 @@ services:
     networks:
       - laravel
 
+  whatsapp:
+    image: node:24-alpine
+    working_dir: /app
+    restart: unless-stopped
+    command: sh -c "apk add --no-cache git >/dev/null && npm install --omit=dev && node src/index.js"
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LARAVEL_WEBHOOK_URL=http://app/api/whatsapp/webhook
+      - WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET:-troque-este-segredo}
+      - WA_OUTBOUND_KEY=wa:outbound
+      - AUTH_DIR=/app/auth
+      - HTTP_PORT=3000
+      - LOG_LEVEL=info
+      # MinIO (mesmo bucket do Laravel)
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=laravel
+      - WA_MEDIA_PREFIX=whatsapp
+    ports:
+      # Dashboard de status/QR (dev). Proteja/remova em produção.
+      - "8083:3000"
+    volumes:
+      - ./whatsapp:/app
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - laravel
+
   mysql:
     image: mysql:latest
     ports:
