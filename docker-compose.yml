@@ -40,7 +40,7 @@ services:
       args:
         - UID=${UID:-1000}
         - GID=${GID:-1000}
-    command: php artisan queue:work redis --queue=geocoding --sleep=3 --tries=3 --timeout=60
+    command: php artisan queue:work redis --queue=geocoding,whatsapp --sleep=3 --tries=3 --timeout=120
     restart: always
     volumes:
       - ./src:/var/www/html
@@ -66,6 +66,7 @@ services:
       - AUTH_DIR=/app/auth
       - HTTP_PORT=3000
       - LOG_LEVEL=info
+      - WA_SYNC_FULL_HISTORY=true
       # MinIO (mesmo bucket do Laravel)
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000

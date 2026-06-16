@@ -1,21 +1,24 @@
 import makeWASocket, {useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason} from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
+import { rm } from 'node:fs/promises';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { state } from './state.js';
+import { redis } from './redis.js';
 
 const baileysLogger = pino({ level: 'warn' });
 
 /**
  * Inicia (e mantém) a conexão com o WhatsApp.
  * @param {object} handlers
- * @param {(msg: object) => Promise<void>} handlers.onMessage   mensagem recebida
- * @param {(update: object) => Promise<void>} handlers.onStatus recibo de entrega/leitura
- * @param {(sock: object) => void} handlers.onSock              socket atual (reatribuído em reconexões)
+ * @param {(msg: object) => Promise<void>} handlers.onMessage    mensagem recebida
+ * @param {(update: object) => Promise<void>} handlers.onStatus  recibo de entrega/leitura
+ * @param {(history: object) => Promise<void>} handlers.onHistory chunk do history sync
+ * @param {(sock: object) => void} handlers.onSock               socket atual (reatribuído em reconexões)
  */
 export async function startWhatsApp(handlers) {
-    const { onMessage, onStatus, onSock } = handlers;
+    const { onMessage, onStatus, onHistory, onSock } = handlers;
     const { state: authState, saveCreds } = await useMultiFileAuthState(config.authDir);
 
     let version;
@@ -27,7 +30,10 @@ export async function startWhatsApp(handlers) {
     }
 
     const sock = makeWASocket({
-        ...(version ? { version } : {}), auth: authState, logger: baileysLogger,
+        ...(version ? { version } : {}),
+        auth: authState,
+        logger: baileysLogger,
+        syncFullHistory: config.history.syncFull,
     });
 
     onSock(sock);
@@ -80,11 +86,36 @@ export async function startWhatsApp(handlers) {
             }
         }
     });
+
+    sock.ev.on('messaging-history.set', async (history) => {
+        try {
+            await onHistory(history);
+        } catch (err) {
+            logger.error({ err }, 'Falha ao processar history sync.');
+        }
+    });
 }
 
-function scheduleReconnect(code, handlers) {
+async function scheduleReconnect(code, handlers) {
     if (code === DisconnectReason.loggedOut) {
-        logger.error('Sessão encerrada (logout). Apague a pasta auth/ e reescaneie o QR.');
+        logger.warn('Sessão encerrada (logout). Limpando credenciais e gerando novo QR…');
+
+        state.jid = null;
+        state.qr = null;
+
+        try {
+            await rm(config.authDir, { recursive: true, force: true });
+        } catch (err) {
+            logger.error({ err }, 'Falha ao limpar a pasta de auth.');
+        }
+
+        try {
+            await redis.del(config.history.listKey, config.history.namesKey, config.history.metaKey);
+        } catch (err) {
+            logger.error({ err }, 'Falha ao limpar o buffer de histórico no Redis.');
+        }
+
+        startWhatsApp(handlers);
         return;
     }
 

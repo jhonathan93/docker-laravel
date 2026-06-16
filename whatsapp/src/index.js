@@ -3,6 +3,7 @@ import { startHttpServer } from './http.js';
 import { startWhatsApp } from './whatsapp.js';
 import { forwardToLaravel } from './inbound.js';
 import { forwardStatus } from './receipts.js';
+import { forwardHistory } from './history.js';
 import { startOutboundLoop } from './outbound.js';
 import { ensureBucket } from './media.js';
 import { state } from './state.js';
@@ -16,9 +17,11 @@ async function main() {
     startHttpServer();
 
     await ensureBucket().catch((err) => logger.error({ err }, 'Falha ao garantir o bucket MinIO.'));
+    
     await startWhatsApp({
         onMessage: forwardToLaravel,
         onStatus: forwardStatus,
+        onHistory: forwardHistory,
         onSock: (s) => { sock = s; state.sock = s; },
     });
 

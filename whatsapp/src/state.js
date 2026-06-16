@@ -6,4 +6,5 @@ export const state = {
     lastDisconnect: null,
     reconnectAttempts: 0,
     sock: null,
+    history: null,
 };

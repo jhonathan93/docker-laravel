@@ -54,4 +54,11 @@ export const config = {
         cacheTtlSec: Number(process.env.WA_JID_CACHE_TTL || 604800),
         negativeTtlSec: Number(process.env.WA_JID_NEG_TTL || 86400),
     },
+
+    history: {
+        syncFull: (process.env.WA_SYNC_FULL_HISTORY || 'false') === 'true',
+        listKey: process.env.WA_HISTORY_LIST || 'wa:history',
+        namesKey: process.env.WA_HISTORY_NAMES || 'wa:history:names',
+        metaKey: process.env.WA_HISTORY_META || 'wa:history:meta',
+    },
 };
