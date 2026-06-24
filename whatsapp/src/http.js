@@ -4,9 +4,13 @@ import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { state } from './state.js';
+import { redis } from './redis.js';
 import { resolveJid } from './numbers.js';
 import { decodeMessage, detectMedia, extFor } from './parse.js';
 import { putBuffer } from './media.js';
+
+// Sentinela de cache negativo para foto de perfil (sem foto / privada).
+const AVATAR_NONE = '-';
 
 function json(res, code, obj) {
     res.writeHead(code, { 'Content-Type': 'application/json' });
@@ -109,6 +113,47 @@ export function startHttpServer() {
             } catch (err) {
                 logger.error({ err }, 'Falha ao desconectar (logout).');
                 return json(res, 500, { error: 'logout failed' });
+            }
+        }
+
+        // Foto de perfil sob demanda. Resolve a URL via Baileys, baixa e sobe pro
+        // MinIO, cacheando a key no Redis. Cache negativo p/ quem não tem foto
+        // ou restringiu por privacidade (evita repetir a chamada ao WhatsApp).
+        if (path === '/avatar') {
+            const jid = new URL(req.url, 'http://x').searchParams.get('jid');
+
+            if (!jid) return json(res, 400, { error: 'jid required' });
+            if (!state.connected || !state.sock) return json(res, 503, { error: 'not connected' });
+
+            const cacheKey = `wa:avatar:${jid}`;
+
+            try {
+                const cached = await redis.get(cacheKey);
+
+                if (cached === AVATAR_NONE) return json(res, 404, { error: 'no avatar' });
+                if (cached) return json(res, 200, { bucket: config.minio.bucket, key: cached, cached: true });
+
+                const url = await state.sock.profilePictureUrl(jid, 'preview').catch(() => undefined);
+
+                if (!url) {
+                    await redis.set(cacheKey, AVATAR_NONE, 'EX', config.avatar.negativeTtlSec);
+                    return json(res, 404, { error: 'no avatar' });
+                }
+
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`fetch ${resp.status}`);
+
+                const buffer   = Buffer.from(await resp.arrayBuffer());
+                const mimetype = resp.headers.get('content-type') || 'image/jpeg';
+                const key      = `${config.minio.prefix}/avatars/${jid.replace(/[^a-z0-9]/gi, '_')}.jpg`;
+
+                await putBuffer(key, buffer, mimetype);
+                await redis.set(cacheKey, key, 'EX', config.avatar.cacheTtlSec);
+
+                return json(res, 200, { bucket: config.minio.bucket, key, mimetype, size: buffer.length });
+            } catch (err) {
+                logger.error({ err, jid }, 'Falha ao obter foto de perfil.');
+                return json(res, 502, { error: 'avatar failed' });
             }
         }
 

@@ -55,6 +55,11 @@ export const config = {
         negativeTtlSec: Number(process.env.WA_JID_NEG_TTL || 86400),
     },
 
+    avatar: {
+        cacheTtlSec: Number(process.env.WA_AVATAR_TTL || 86400),
+        negativeTtlSec: Number(process.env.WA_AVATAR_NEG_TTL || 21600),
+    },
+
     history: {
         syncFull: (process.env.WA_SYNC_FULL_HISTORY || 'false') === 'true',
         listKey: process.env.WA_HISTORY_LIST || 'wa:history',
