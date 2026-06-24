@@ -17,6 +17,7 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8081:80"
+      - "5173:5173"
     environment:
       - XDEBUG_MODE=off
       - XDEBUG_START_WITH_REQUEST=no
@@ -40,7 +41,14 @@ services:
       args:
         - UID=${UID:-1000}
         - GID=${GID:-1000}
-    command: php artisan queue:work redis --queue=geocoding,whatsapp --sleep=3 --tries=3 --timeout=120
+    command: >
+      bash -c "
+        until [ -f /var/www/html/artisan ]; do
+          echo 'Aguardando volume...';
+          sleep 3;
+        done;
+        exec php artisan queue:work redis --queue=geocoding,whatsapp --sleep=3 --tries=3 --timeout=120
+      "
     restart: always
     volumes:
       - ./src:/var/www/html
@@ -48,14 +56,17 @@ services:
     depends_on:
       - mysql
       - redis
+      - app
     networks:
       - laravel
 
   whatsapp:
-    image: node:24-alpine
+    build:
+      context: ./whatsapp
+      dockerfile: Dockerfile
     working_dir: /app
     restart: unless-stopped
-    command: sh -c "apk add --no-cache git >/dev/null && npm install --omit=dev && node src/index.js"
+    command: node src/index.js
     environment:
       - NODE_ENV=production
       - REDIS_HOST=redis
@@ -79,7 +90,7 @@ services:
       # Dashboard de status/QR (dev). Proteja/remova em produção.
       - "8083:3000"
     volumes:
-      - ./whatsapp:/app
+      - ./whatsapp/auth:/app/auth
     depends_on:
       - redis
       - minio
