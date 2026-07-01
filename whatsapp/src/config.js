@@ -35,6 +35,9 @@ export const config = {
     reconnect: {
         baseMs: Number(process.env.WA_RECONNECT_BASE_MS || 3000),
         maxMs: Number(process.env.WA_RECONNECT_MAX_MS || 60000),
+        // Circuit breaker: N logouts dentro da janela => pausa a reconexão.
+        maxLogouts: Number(process.env.WA_MAX_LOGOUTS || 3),
+        logoutWindowMs: Number(process.env.WA_LOGOUT_WINDOW_MS || 300000),
     },
 
     minio: {

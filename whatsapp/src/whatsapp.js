@@ -120,12 +120,17 @@ async function clearAuthDir() {
     );
 }
 
+/** Timestamps dos logouts recentes — base do circuit breaker. */
+let recentLogouts = [];
+
 async function scheduleReconnect(code, handlers) {
     if (code === DisconnectReason.loggedOut) {
-        logger.warn('Sessão encerrada (logout). Limpando credenciais e gerando novo QR…');
-
         state.jid = null;
         state.qr = null;
+
+        const now = Date.now();
+        recentLogouts = recentLogouts.filter((t) => now - t < config.reconnect.logoutWindowMs);
+        recentLogouts.push(now);
 
         try {
             await clearAuthDir();
@@ -139,6 +144,18 @@ async function scheduleReconnect(code, handlers) {
             logger.error({ err }, 'Falha ao limpar o buffer de histórico no Redis.');
         }
 
+        // Circuit breaker: logouts repetidos em pouco tempo = o WhatsApp está
+        // rejeitando a sessão (rate-limit). Para de reconectar/gerar QR para não
+        // martelar o pareamento (o que agravaria o rate-limit / risco de ban).
+        if (recentLogouts.length >= config.reconnect.maxLogouts) {
+            state.blocked = true;
+            state.blockedReason = `Sessão rejeitada pelo WhatsApp ${recentLogouts.length}x em ${Math.round(config.reconnect.logoutWindowMs / 60000)} min. `
+                + 'Reconexão automática pausada — aguarde o número estabilizar e reinicie o gateway.';
+            logger.error({ logouts: recentLogouts.length }, 'Circuit breaker acionado: reconexão automática pausada após logouts repetidos.');
+            return;
+        }
+
+        logger.warn({ logouts: recentLogouts.length }, 'Sessão encerrada (logout). Limpando credenciais e gerando novo QR…');
         startWhatsApp(handlers);
         return;
     }
