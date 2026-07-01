@@ -59,6 +59,17 @@ export function audioMeta(data) {
     };
 }
 
+/** Metadados por tipo de mídia (áudio mantém seconds/ptt; demais trazem filename). */
+export function mediaMeta(media) {
+    if (media.type === 'audio') return audioMeta(media.data);
+
+    return {
+        mimetype: media.data.mimetype || null,
+        filename: media.data.fileName || null,
+        size: toNumber(media.data.fileLength),
+    };
+}
+
 export function encodeMessage(msg) {
     return Buffer.from(proto.WebMessageInfo.encode(msg).finish()).toString('base64');
 }

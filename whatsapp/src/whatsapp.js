@@ -1,7 +1,8 @@
 import makeWASocket, {useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason} from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
-import { rm } from 'node:fs/promises';
+import { rm, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { state } from './state.js';
@@ -18,7 +19,7 @@ const baileysLogger = pino({ level: 'warn' });
  * @param {(sock: object) => void} handlers.onSock               socket atual (reatribuído em reconexões)
  */
 export async function startWhatsApp(handlers) {
-    const { onMessage, onStatus, onHistory, onSock } = handlers;
+    const { onMessage, onStatus, onHistory, onContacts, onSock } = handlers;
     const { state: authState, saveCreds } = await useMultiFileAuthState(config.authDir);
 
     let version;
@@ -94,6 +95,29 @@ export async function startWhatsApp(handlers) {
             logger.error({ err }, 'Falha ao processar history sync.');
         }
     });
+
+    const onContactsSafe = async (contacts) => {
+        try {
+            await onContacts(contacts);
+        } catch (err) {
+            logger.error({ err }, 'Falha ao processar contatos.');
+        }
+    };
+
+    sock.ev.on('contacts.upsert', onContactsSafe);
+    sock.ev.on('contacts.update', onContactsSafe);
+}
+
+/**
+ * Esvazia a pasta de auth apagando seu CONTEÚDO, não a própria pasta — ela é um
+ * bind mount do Docker e `rm` no diretório montado falha com EBUSY.
+ */
+async function clearAuthDir() {
+    const entries = await readdir(config.authDir).catch(() => []);
+
+    await Promise.all(
+        entries.map((name) => rm(join(config.authDir, name), { recursive: true, force: true })),
+    );
 }
 
 async function scheduleReconnect(code, handlers) {
@@ -104,7 +128,7 @@ async function scheduleReconnect(code, handlers) {
         state.qr = null;
 
         try {
-            await rm(config.authDir, { recursive: true, force: true });
+            await clearAuthDir();
         } catch (err) {
             logger.error({ err }, 'Falha ao limpar a pasta de auth.');
         }

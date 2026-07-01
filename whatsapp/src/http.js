@@ -93,7 +93,7 @@ export function startHttpServer() {
 
                 const mimetype = media.data.mimetype || 'application/octet-stream';
                 const id       = msg.key?.id || Date.now().toString();
-                const key      = `${config.minio.prefix}/ondemand/${id}.${extFor(mimetype)}`;
+                const key      = `${config.minio.prefix}/ondemand/${media.type}/${id}.${extFor(mimetype)}`;
 
                 const { bucket } = await putBuffer(key, buffer, mimetype);
 

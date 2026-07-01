@@ -3,7 +3,7 @@ import { startHttpServer } from './http.js';
 import { startWhatsApp } from './whatsapp.js';
 import { forwardToLaravel } from './inbound.js';
 import { forwardStatus } from './receipts.js';
-import { forwardHistory } from './history.js';
+import { forwardHistory, rememberContacts } from './history.js';
 import { startOutboundLoop } from './outbound.js';
 import { ensureBucket } from './media.js';
 import { state } from './state.js';
@@ -22,6 +22,7 @@ async function main() {
         onMessage: forwardToLaravel,
         onStatus: forwardStatus,
         onHistory: forwardHistory,
+        onContacts: rememberContacts,
         onSock: (s) => { sock = s; state.sock = s; },
     });
 

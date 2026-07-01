@@ -2,18 +2,20 @@ import { redis } from './redis.js';
 import { config } from './config.js';
 import { state } from './state.js';
 import { logger } from './logger.js';
-import { extractText, detectMedia, audioMeta, encodeMessage } from './parse.js';
+import { extractText, detectMedia, mediaMeta, encodeMessage } from './parse.js';
 
 function normalizeMessage(m) {
     const media = detectMedia(m.message);
     let mediaRef = null;
 
-    if (media?.type === 'audio') {
+    // Toda mídia do histórico é guardada como referência (descritor) e baixada
+    // sob demanda — baixar tudo no sync seria inviável e a URL do WhatsApp expira.
+    if (media) {
         mediaRef = {
-            type: 'audio',
+            type: media.type,
             on_demand: true,
             downloaded: false,
-            ...audioMeta(media.data),
+            ...mediaMeta(media),
             descriptor: encodeMessage(m),
         };
     }
@@ -33,6 +35,29 @@ function normalizeMessage(m) {
 
 const chatName = (c) => c.name || c.subject || null;
 const contactName = (ct) => ct.name || ct.notify || ct.verifiedName || null;
+
+/**
+ * Persiste nomes de contatos no hash de nomes (jid → nome). Alimentado pelos
+ * eventos contacts.upsert/update — é por aqui que vêm os nomes da agenda, que
+ * o history sync não traz para contatos individuais.
+ */
+export async function rememberContacts(contacts = []) {
+    const pipeline = redis.pipeline();
+    let n = 0;
+
+    for (const ct of contacts) {
+        const name = contactName(ct);
+        if (ct.id && name) {
+            pipeline.hset(config.history.namesKey, ct.id, name);
+            n++;
+        }
+    }
+
+    if (n > 0) {
+        await pipeline.exec();
+        logger.info({ contacts: n }, 'Nomes de contatos atualizados.');
+    }
+}
 
 export async function forwardHistory({ chats = [], contacts = [], messages = [], isLatest, progress, syncType }) {
     const msgs = messages.filter((m) => m?.message);
