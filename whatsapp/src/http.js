@@ -46,6 +46,8 @@ export function startHttpServer() {
                 qr_image: state.qr ? await QRCode.toDataURL(state.qr, { width: 320, margin: 2 }) : null,
                 last_disconnect: state.lastDisconnect,
                 reconnect_attempts: state.reconnectAttempts,
+                blocked: state.blocked,
+                blocked_reason: state.blockedReason,
                 history: state.history,
             });
         }
