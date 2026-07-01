@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { logger } from './logger.js';
 import { state } from './state.js';
 import { redis } from './redis.js';
+import { registerOnDemand } from './onDemand.js';
 import { resolveJid } from './numbers.js';
 import { decodeMessage, detectMedia, extFor } from './parse.js';
 import { putBuffer } from './media.js';
@@ -154,6 +155,30 @@ export function startHttpServer() {
             } catch (err) {
                 logger.error({ err, jid }, 'Falha ao obter foto de perfil.');
                 return json(res, 502, { error: 'avatar failed' });
+            }
+        }
+
+        // Histórico sob demanda: pede ao WhatsApp mensagens mais antigas que a
+        // `oldest` informada (scroll para cima). O resultado volta assíncrono no
+        // evento messaging-history.set e é correlacionado pelo requestId.
+        if (path === '/history/on-demand' && req.method === 'POST') {
+            if (!state.connected || !state.sock) return json(res, 503, { error: 'not connected' });
+
+            const body = await readJson(req);
+            if (!body?.jid || !body?.oldest_id) return json(res, 400, { error: 'jid and oldest_id required' });
+
+            try {
+                const key   = { remoteJid: body.jid, id: body.oldest_id, fromMe: Boolean(body.oldest_from_me) };
+                const count = Math.min(Math.max(Number(body.count) || 30, 1), 50);
+                const ts    = Number(body.oldest_timestamp) || Math.floor(Date.now() / 1000); // unix segundos
+
+                const requestId = await state.sock.fetchMessageHistory(count, key, ts);
+                const messages  = await registerOnDemand(requestId, 20000);
+
+                return json(res, 200, { messages });
+            } catch (err) {
+                logger.error({ err }, 'Falha no fetch de histórico sob demanda.');
+                return json(res, 502, { error: 'on-demand failed' });
             }
         }
 
