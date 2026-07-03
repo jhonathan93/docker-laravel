@@ -61,6 +61,7 @@ export const config = {
     avatar: {
         cacheTtlSec: Number(process.env.WA_AVATAR_TTL || 86400),
         negativeTtlSec: Number(process.env.WA_AVATAR_NEG_TTL || 21600),
+        timeoutMs: Number(process.env.WA_AVATAR_TIMEOUT_MS || 10000),
     },
 
     history: {

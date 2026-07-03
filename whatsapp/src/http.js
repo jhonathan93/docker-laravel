@@ -136,7 +136,19 @@ export function startHttpServer() {
                 if (cached === AVATAR_NONE) return json(res, 404, { error: 'no avatar' });
                 if (cached) return json(res, 200, { bucket: config.minio.bucket, key: cached, cached: true });
 
-                const url = await state.sock.profilePictureUrl(jid, 'preview').catch(() => undefined);
+                // Timeout explícito: para alguns contatos o profilePictureUrl
+                // pendura (sem resposta do servidor). Sem isso, o pedido ficava
+                // preso por minutos e ainda cacheava "sem foto" indevidamente.
+                // Muitos contatos individuais dão "Timed Out" aqui (o WhatsApp não
+                // responde à consulta de foto pelo aparelho vinculado — limitação
+                // conhecida). Timeout explícito evita pendurar; tratamos como
+                // "sem foto" e cacheamos para não repetir a espera a cada abertura.
+                let url;
+                try {
+                    url = await state.sock.profilePictureUrl(jid, 'image', config.avatar.timeoutMs);
+                } catch (err) {
+                    logger.warn({ jid, err: err?.message || String(err) }, 'profilePictureUrl timeout/erro; tratando como sem foto.');
+                }
 
                 if (!url) {
                     await redis.set(cacheKey, AVATAR_NONE, 'EX', config.avatar.negativeTtlSec);
