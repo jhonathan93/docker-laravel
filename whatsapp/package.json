@@ -9,7 +9,7 @@
         "dev": "node --watch src/index.js"
     },
     "dependencies": {
-        "@whiskeysockets/baileys": "^6.7.0",
+        "@whiskeysockets/baileys": "7.0.0-rc13",
         "ioredis": "^5.4.1",
         "minio": "^8.0.1",
         "pino": "^9.5.0",
