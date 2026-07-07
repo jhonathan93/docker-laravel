@@ -6,12 +6,14 @@
     "description": "Gateway WhatsApp (Baileys) - ponte entre o WhatsApp e o Laravel via Redis/webhook",
     "scripts": {
         "start": "node src/index.js",
-        "dev": "node --watch src/index.js"
+        "dev": "node --watch src/index.js",
+        "postinstall": "patch-package"
     },
     "dependencies": {
         "@whiskeysockets/baileys": "7.0.0-rc13",
         "ioredis": "^5.4.1",
         "minio": "^8.0.1",
+        "patch-package": "^8.0.0",
         "pino": "^9.5.0",
         "qrcode": "^1.5.4",
         "qrcode-terminal": "^0.12.0"
