@@ -1,0 +1,23 @@
+diff --git a/node_modules/@whiskeysockets/baileys/lib/Socket/chats.js b/node_modules/@whiskeysockets/baileys/lib/Socket/chats.js
+index 9a7947f..23386c8 100644
+--- a/node_modules/@whiskeysockets/baileys/lib/Socket/chats.js
++++ b/node_modules/@whiskeysockets/baileys/lib/Socket/chats.js
+@@ -554,15 +554,9 @@ export const makeChatsSocket = (config) => {
+         const isUserJid = isPnUser(normalizedJid) || isLidUser(normalizedJid);
+         const me = authState.creds.me;
+         const isSelf = me && (normalizedJid === jidNormalizedUser(me.id) || (me.lid && normalizedJid === jidNormalizedUser(me.lid)));
+-        let content = baseContent;
+-        if (serverProps.profilePicPrivacyToken && isUserJid && !isSelf) {
+-            content = await buildTcTokenFromJid({
+-                authState,
+-                jid: normalizedJid,
+-                baseContent,
+-                getLIDForPN
+-            });
+-        }
++        // PATCH (Baileys issue #2498): a lógica de tcToken trava o profilePictureUrl
++        // para contatos individuais no 7.0.0-rc; volta ao comportamento simples (rc.9).
++        const content = baseContent;
+         jid = jidNormalizedUser(jid);
+         const result = await query({
+             tag: 'iq',

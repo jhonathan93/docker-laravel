@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { logger } from './logger.js';
 import { state } from './state.js';
 import { redis } from './redis.js';
+import { registerOnDemand } from './onDemand.js';
 import { resolveJid } from './numbers.js';
 import { decodeMessage, detectMedia, extFor } from './parse.js';
 import { putBuffer } from './media.js';
@@ -135,7 +136,19 @@ export function startHttpServer() {
                 if (cached === AVATAR_NONE) return json(res, 404, { error: 'no avatar' });
                 if (cached) return json(res, 200, { bucket: config.minio.bucket, key: cached, cached: true });
 
-                const url = await state.sock.profilePictureUrl(jid, 'preview').catch(() => undefined);
+                // Timeout explícito: para alguns contatos o profilePictureUrl
+                // pendura (sem resposta do servidor). Sem isso, o pedido ficava
+                // preso por minutos e ainda cacheava "sem foto" indevidamente.
+                // Muitos contatos individuais dão "Timed Out" aqui (o WhatsApp não
+                // responde à consulta de foto pelo aparelho vinculado — limitação
+                // conhecida). Timeout explícito evita pendurar; tratamos como
+                // "sem foto" e cacheamos para não repetir a espera a cada abertura.
+                let url;
+                try {
+                    url = await state.sock.profilePictureUrl(jid, 'image', config.avatar.timeoutMs);
+                } catch (err) {
+                    logger.warn({ jid, err: err?.message || String(err) }, 'profilePictureUrl timeout/erro; tratando como sem foto.');
+                }
 
                 if (!url) {
                     await redis.set(cacheKey, AVATAR_NONE, 'EX', config.avatar.negativeTtlSec);
@@ -156,6 +169,30 @@ export function startHttpServer() {
             } catch (err) {
                 logger.error({ err, jid }, 'Falha ao obter foto de perfil.');
                 return json(res, 502, { error: 'avatar failed' });
+            }
+        }
+
+        // Histórico sob demanda: pede ao WhatsApp mensagens mais antigas que a
+        // `oldest` informada (scroll para cima). O resultado volta assíncrono no
+        // evento messaging-history.set e é correlacionado pelo requestId.
+        if (path === '/history/on-demand' && req.method === 'POST') {
+            if (!state.connected || !state.sock) return json(res, 503, { error: 'not connected' });
+
+            const body = await readJson(req);
+            if (!body?.jid || !body?.oldest_id) return json(res, 400, { error: 'jid and oldest_id required' });
+
+            try {
+                const key   = { remoteJid: body.jid, id: body.oldest_id, fromMe: Boolean(body.oldest_from_me) };
+                const count = Math.min(Math.max(Number(body.count) || 30, 1), 50);
+                const ts    = Number(body.oldest_timestamp) || Math.floor(Date.now() / 1000); // unix segundos
+
+                const requestId = await state.sock.fetchMessageHistory(count, key, ts);
+                const messages  = await registerOnDemand(requestId, 20000);
+
+                return json(res, 200, { messages });
+            } catch (err) {
+                logger.error({ err }, 'Falha no fetch de histórico sob demanda.');
+                return json(res, 502, { error: 'on-demand failed' });
             }
         }
 

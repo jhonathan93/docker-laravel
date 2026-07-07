@@ -2,9 +2,10 @@ import { redis } from './redis.js';
 import { config } from './config.js';
 import { state } from './state.js';
 import { logger } from './logger.js';
+import { resolveOnDemand, isOnDemand } from './onDemand.js';
 import { extractText, detectMedia, mediaMeta, encodeMessage } from './parse.js';
 
-function normalizeMessage(m) {
+export function normalizeMessage(m) {
     const media = detectMedia(m.message);
     let mediaRef = null;
 
@@ -59,8 +60,17 @@ export async function rememberContacts(contacts = []) {
     }
 }
 
-export async function forwardHistory({ chats = [], contacts = [], messages = [], isLatest, progress, syncType }) {
+export async function forwardHistory({ chats = [], contacts = [], messages = [], isLatest, progress, syncType, peerDataRequestSessionId }) {
     const msgs = messages.filter((m) => m?.message);
+
+    // Resultado de um fetchMessageHistory (scroll sob demanda): entrega direto
+    // ao pedido HTTP que está esperando, sem bufferar no Redis.
+    if (peerDataRequestSessionId && isOnDemand(peerDataRequestSessionId)) {
+        resolveOnDemand(peerDataRequestSessionId, msgs.map(normalizeMessage));
+        logger.info({ requestId: peerDataRequestSessionId, messages: msgs.length }, 'Histórico on-demand entregue.');
+        return;
+    }
+
     const pipeline = redis.pipeline();
 
     for (const m of msgs) {
